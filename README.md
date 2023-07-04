@@ -1,7 +1,2 @@
-# partition-mounter
-
-Universal partition mounter
-
-Fully functional on Windows and macOS
-
-For Windows you must open the app as administrator
+# Qartion
+Qartion is a free partition mounter for Windows and macOS
