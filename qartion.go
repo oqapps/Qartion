@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -144,6 +145,8 @@ func LoadData(c *fyne.Container) {
 
 func main() {
 	a := app.New()
+	_, _ = os.ReadFile("C:\\Users\\Amirb\\Downloads\\transparent-qartion.png")
+	a.SetIcon(fyne.NewStaticResource("logo", Logo))
 	w := a.NewWindow("Qartion")
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		card := widget.NewCard("Unsupported Platform", "Qartion does not support the platform you are using.", widget.NewButton("Exit", func() {

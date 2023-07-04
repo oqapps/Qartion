@@ -55,6 +55,7 @@ func getDefaultIconTheme() (string, int) {
 
 func LaunchSettings(a fyne.App) {
 	w := a.NewWindow("Qartion - Settings")
+	//a.SetIcon()
 	w.CenterOnScreen()
 	iconThemeSelect := widget.NewSelect(icons, func(s string) {
 		var index int
