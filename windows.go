@@ -64,7 +64,6 @@ func windowsGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 		partitions := orderedmap.New[string, Partition]()
 		partitionIds := make([]string, 0)
 		for _, p := range detail["Volumes"].([]map[string]interface{}) {
-			//id := uuid.NewString()
 			partitionIds = append(partitionIds, p["ID"].(string))
 			mountPoint := ""
 			if p["MountPoint"] != nil {
