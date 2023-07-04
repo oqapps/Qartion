@@ -169,7 +169,7 @@ func DarwinOpenFolder(path string) {
 }
 
 func DarwinMountPartition(partition Partition) bool {
-	cmd := elevate.Command("sudo", "diskutil", "mount", partition.Device)
+	cmd := elevate.Command("diskutil", "mount", partition.Device)
 	_, e := cmd.Output()
 	if e != nil {
 		return false
