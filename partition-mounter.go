@@ -12,7 +12,6 @@ import (
 	"fyne.io/fyne/v2/layout"
 
 	"fyne.io/fyne/v2/widget"
-	"github.com/fstanis/screenresolution"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
@@ -147,7 +146,6 @@ func LoadData(c *fyne.Container) {
 func main() {
 	a := app.New()
 	w := a.NewWindow("Partition Mounter")
-	resolution := screenresolution.GetPrimary()
 	c := container.NewVBox()
 	buttons := container.NewHBox(widget.NewCard("", "", container.New(layout.NewGridLayout(2), widget.NewButton("Refresh", func() {
 		LoadData(c)
@@ -159,7 +157,6 @@ func main() {
 	diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
 	c.Add(buttons)
 	LoadData(c)
-	w.Resize(fyne.NewSize(float32(resolution.Width), float32(resolution.Height)))
 	w.SetContent(c)
 
 	w.ShowAndRun()

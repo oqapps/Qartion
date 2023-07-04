@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	fyne.io/fyne/v2 v2.3.5
-	github.com/fstanis/screenresolution v0.0.0-20190527020317-869904d15333
 	github.com/google/uuid v1.3.0
 	github.com/wk8/go-ordered-map/v2 v2.1.8
 )
@@ -45,7 +44,6 @@ require (
 	github.com/goki/freetype v0.0.0-20220119013949-7a161fd3728c // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect
-	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/oq-x/go-plist v0.0.0-20230609103657-648482a6dca3
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/srwiley/oksvg v0.0.0-20220731023508-a61f04f16b76 // indirect

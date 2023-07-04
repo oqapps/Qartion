@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
-	"github.com/fstanis/screenresolution"
 )
 
 var icons = []string{"Windows", "macOS", "Linux"}
@@ -77,8 +76,6 @@ func LaunchSettings(a fyne.App) {
 
 	settingsContainer := container.NewVBox(container.NewHBox(widget.NewLabel("Icon Theme"), iconThemeSelect))
 	card := widget.NewCard("Settings", "", settingsContainer)
-	resolution := screenresolution.GetPrimary()
-	w.Resize(fyne.NewSize(float32(resolution.Width)/2, float32(resolution.Height)/2))
 
 	w.SetContent(card)
 	w.Show()
