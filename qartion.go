@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -159,7 +158,14 @@ func main() {
 			LaunchSettings(a)
 		}))))
 		i, _ := getDefaultIconTheme()
-		di, _ := os.ReadFile(fmt.Sprintf("disk-icon-%s.png", i))
+
+		var di []byte
+		switch i {
+		case "windows":
+			di = WindowsDiskIcon
+		case "darwin":
+			di = DarwinDiskIcon
+		}
 		diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
 		c.Add(buttons)
 		LoadData(c)

@@ -66,7 +66,13 @@ func LaunchSettings(a fyne.App) {
 		}
 		low := iconsLow[index]
 		updateConfig("iconTheme", index)
-		di, _ := os.ReadFile(fmt.Sprintf("disk-icon-%s.png", low))
+		var di []byte
+		switch low {
+		case "windows":
+			di = WindowsDiskIcon
+		case "darwin":
+			di = DarwinDiskIcon
+		}
 		diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
 	})
 	_, i := getDefaultIconTheme()
