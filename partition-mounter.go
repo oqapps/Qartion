@@ -145,19 +145,26 @@ func LoadData(c *fyne.Container) {
 
 func main() {
 	a := app.New()
-	w := a.NewWindow("Partition Mounter")
-	c := container.NewVBox()
-	buttons := container.NewHBox(widget.NewCard("", "", container.New(layout.NewGridLayout(2), widget.NewButton("Refresh", func() {
+	w := a.NewWindow("Qartion")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		card := widget.NewCard("Unsupported Platform", "Qartion does not support the platform you are using.", widget.NewButton("Exit", func() {
+			w.Close()
+		}))
+		w.SetContent(card)
+	} else {
+		c := container.NewVBox()
+		buttons := container.NewHBox(widget.NewCard("", "", container.New(layout.NewGridLayout(2), widget.NewButton("Refresh", func() {
+			LoadData(c)
+		}), widget.NewButton("Settings", func() {
+			LaunchSettings(a)
+		}))))
+		i, _ := getDefaultIconTheme()
+		di, _ := os.ReadFile(fmt.Sprintf("disk-icon-%s.png", i))
+		diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
+		c.Add(buttons)
 		LoadData(c)
-	}), widget.NewButton("Settings", func() {
-		LaunchSettings(a)
-	}))))
-	i, _ := getDefaultIconTheme()
-	di, _ := os.ReadFile(fmt.Sprintf("disk-icon-%s.png", i))
-	diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
-	c.Add(buttons)
-	LoadData(c)
-	w.SetContent(c)
+		w.SetContent(c)
+	}
 
 	w.ShowAndRun()
 }

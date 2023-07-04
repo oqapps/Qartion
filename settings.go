@@ -13,8 +13,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var icons = []string{"Windows", "macOS", "Linux"}
-var iconsLow = []string{"windows", "darwin", "linux"}
+var icons = []string{"Windows", "macOS"}
+var iconsLow = []string{"windows", "darwin"}
 
 func updateConfig(key string, value interface{}) {
 	var settings map[string]interface{}
@@ -49,14 +49,12 @@ func getDefaultIconTheme() (string, int) {
 		return runtime.GOOS, 0
 	case "darwin":
 		return runtime.GOOS, 1
-	case "linux":
-		return runtime.GOOS, 2
 	}
 	return "windows", 0
 }
 
 func LaunchSettings(a fyne.App) {
-	w := a.NewWindow("Partition Mounter")
+	w := a.NewWindow("Qartion - Settings")
 	w.CenterOnScreen()
 	iconThemeSelect := widget.NewSelect(icons, func(s string) {
 		var index int
