@@ -1,4 +1,4 @@
-module partition-mounter
+module qartion
 
 go 1.18
 
