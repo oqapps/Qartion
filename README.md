@@ -9,8 +9,11 @@ Qartion is a free partition mounter for Windows and macOS
 
 ## Tested On
 Windows 10
+
 Windows 11
+
 macOS Ventura
+
 macOS Sonoma
 
 ## Disclaimer
