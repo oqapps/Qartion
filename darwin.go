@@ -12,7 +12,7 @@ import (
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
-func getDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
+func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 	cmd := exec.Command("diskutil", "list", "-plist")
 
 	output, err := cmd.Output()
@@ -46,10 +46,10 @@ func getDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 							mountPoint = id
 							id = par.Values[5].(string)
 						}
-						partitions.Set(par.Values[2].(string), Partition{
+						partitions.Set(id, Partition{
 							Name:       par.Values[4].(string),
 							Device:     par.Values[1].(string),
-							ID:         par.Values[2].(string),
+							ID:         id,
 							Size:       par.Values[3].(uint64),
 							MountPoint: mountPoint,
 						})
@@ -112,7 +112,6 @@ func getDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 					}
 				}
 			}
-		} else {
 		}
 	}
 	return disks, nil
@@ -137,18 +136,8 @@ func GetInfo(name string) (map[string]interface{}, error) {
 	return d, nil
 }
 
-func LoopPartitions(partitions orderedmap.OrderedMap[string, Partition]) {
-	for pair := partitions.Oldest(); pair != nil; pair = pair.Next() {
-		partition := pair.Value
-		Entries[partition.ID] = Data{Partition: partition}
-		for pair := partition.Partitions.Oldest(); pair != nil; pair = pair.Next() {
-			LoopPartitions(pair.Value.Partitions)
-		}
-	}
-}
-
 func DarwinGetPartitions() (Disks *orderedmap.OrderedMap[string, Disk], DiskIDs []string) {
-	disks, err := getDiskPartitions()
+	disks, err := darwinGetDiskPartitions()
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -158,14 +147,14 @@ func DarwinGetPartitions() (Disks *orderedmap.OrderedMap[string, Disk], DiskIDs 
 	for pair := disks.Oldest(); pair != nil; pair = pair.Next() {
 		DiskIDs = append(DiskIDs, pair.Value.ID)
 		Entries[pair.Value.ID] = Data{Disk: pair.Value}
-		LoopPartitions(pair.Value.Partitions)
+		loopPartitions(pair.Value.Partitions)
 	}
 	return
 }
 
 func DarwinOpenFolder(path string) {
 	cmd := exec.Command("open", path)
-	cmd.Output()
+	cmd.Run()
 }
 
 func DarwinMountPartition(partition Partition) bool {
@@ -178,6 +167,6 @@ func DarwinMountPartition(partition Partition) bool {
 	if e != nil {
 		return false
 	}
-	exec.Command("open", info["MountPoint"].(string)).Output()
+	exec.Command("open", info["MountPoint"].(string)).Run()
 	return true
 }

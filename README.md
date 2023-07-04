@@ -2,4 +2,6 @@
 
 Universal partition mounter
 
-At the moment only macos is fully functional
+Fully functional on Windows and macOS
+
+For Windows you must open the app as administrator

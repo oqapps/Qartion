@@ -41,7 +41,20 @@ type Data struct {
 	Partition Partition
 }
 
-func parseSize(size uint64) string {
+func loopPartitions(partitions orderedmap.OrderedMap[string, Partition]) {
+	for pair := partitions.Oldest(); pair != nil; pair = pair.Next() {
+		partition := pair.Value
+		Entries[partition.ID] = Data{Partition: partition}
+		for pair := partition.Partitions.Oldest(); pair != nil; pair = pair.Next() {
+			loopPartitions(pair.Value.Partitions)
+		}
+	}
+}
+
+func parseSize(size uint64, giga bool) string {
+	if runtime.GOOS == "windows" && giga {
+		return fmt.Sprintf("%dGB", size)
+	}
 	gigabyte := size / 1e+9
 	if gigabyte > 0 {
 		return fmt.Sprintf("%dGB", gigabyte)
@@ -70,18 +83,22 @@ func LoadData(c *fyne.Container) {
 		{
 			Disks, DiskIDs = DarwinGetPartitions()
 		}
+	case "windows":
+		{
+			Disks, DiskIDs = WindowsGetPartitions()
+		}
 	}
 
 	for pair := Disks.Oldest(); pair != nil; pair = pair.Next() {
 		disk := pair.Value
 		diskName := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", disk.Name))
-		diskSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", parseSize(disk.Size)))
+		diskSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", parseSize(disk.Size, true)))
 		co := container.NewHBox(&diskIcon, diskName, layout.NewSpacer(), diskSize)
 		diskContainer := container.NewVBox(co)
 		for pair := disk.Partitions.Oldest(); pair != nil; pair = pair.Next() {
 			partition := pair.Value
 			partitionName := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", partition.Name))
-			partitionSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", parseSize(partition.Size)))
+			partitionSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", parseSize(partition.Size, false)))
 			mount := widget.NewButton("Mount", func() {
 				if partition.MountPoint != "" {
 					switch runtime.GOOS {
@@ -89,12 +106,23 @@ func LoadData(c *fyne.Container) {
 						{
 							DarwinOpenFolder(partition.MountPoint)
 						}
+					case "windows":
+						{
+							WindowsOpenFolder(partition.MountPoint)
+						}
 					}
 				} else {
 					switch runtime.GOOS {
 					case "darwin":
 						{
 							success := DarwinMountPartition(partition)
+							if success {
+								LoadData(c)
+							}
+						}
+					case "windows":
+						{
+							success := WindowsMountPartition(partition)
 							if success {
 								LoadData(c)
 							}
@@ -108,7 +136,7 @@ func LoadData(c *fyne.Container) {
 			} else {
 				mount.Importance = widget.HighImportance
 			}
-			partitionContainer := fyne.NewContainerWithLayout(layout.NewHBoxLayout(), partitionName, layout.NewSpacer(), partitionSize, mount)
+			partitionContainer := container.New(layout.NewHBoxLayout(), partitionName, layout.NewSpacer(), partitionSize, mount)
 			diskContainer.Add(partitionContainer)
 		}
 		card := widget.NewCard("", "", diskContainer)
@@ -131,7 +159,6 @@ func main() {
 	diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
 	c.Add(buttons)
 	LoadData(c)
-
 	w.Resize(fyne.NewSize(float32(resolution.Width), float32(resolution.Height)))
 	w.SetContent(c)
 
