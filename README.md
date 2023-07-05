@@ -21,7 +21,7 @@ macOS Sonoma
 ### Volume Mode
 > Linked Mode
 Uses diskpart.
-Partitions show up under they disk they belong to.
+Partitions show up under the disk they belong to.
 Doesn't support external drives.
 
 > Standalone Mode
