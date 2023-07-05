@@ -2,32 +2,28 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
-var WindowsVolumeTypes = "Partition,Simple,Mirror,Stripe,RAID-5,Unknown,No Fs"
+var WindowsVolumeTypes = "Partition,Simple,Mirror,Stripe,RAID-5,Unknown,No Fs,Removable"
 var WindowsFileSystems = "FAT32,NTFS,exFAT,UDF,ReFS,Fat,Raw,CDFS,DFS"
 var WindowsHealthTypes = "Healthy,Healthy(System),Healthy(Active),Healthy(Boot),Failed,Failed(Errors),Failed(Offline),Failed(Validation),Failed(Other),Formatting,Resynching"
 var WindowsInfoTypes = "Hidden,System,Active,Boot,Crash Dump,Page File,Primary Partition,Logical Drive,No Drive Letter,Read-only"
 
-func WindowsGetPartitions() (Disks *orderedmap.OrderedMap[string, Disk], DiskIDs []string) {
+func WindowsGetPartitions() *orderedmap.OrderedMap[string, Disk] {
 	disks, err := windowsGetDiskPartitions()
 	if err != nil {
 		fmt.Println("Error:", err)
-		return
+		return nil
 	}
-	Disks = disks
-	for pair := disks.Oldest(); pair != nil; pair = pair.Next() {
-		DiskIDs = append(DiskIDs, pair.Value.ID)
-		Entries[pair.Value.ID] = Data{Disk: pair.Value}
-		loopPartitions(pair.Value.Partitions)
-	}
-	return
+	return disks
 }
 
 func WindowsOpenFolder(path string) {
@@ -37,7 +33,30 @@ func WindowsOpenFolder(path string) {
 
 func WindowsMountPartition(partition Partition) bool {
 	_, err := windowsDiskpartCommand(fmt.Sprintf("sel vol %s", partition.ID), "assign")
-	return err != nil
+	return err == nil
+}
+
+func WindowsMountVolume(volumeId string) bool {
+	letter := windowsGenerateLetter()
+	cmd := exec.Command("mountvol", letter, volumeId)
+	err := cmd.Run()
+	return err == nil
+}
+
+func windowsGenerateLetter() string {
+	letter := windowsRandomLetter()
+	for pair := Volumes.Oldest(); pair != nil; pair = pair.Next() {
+		if pair.Value.MountPoint == letter {
+			letter = windowsRandomLetter()
+		}
+	}
+	return letter
+}
+
+func windowsRandomLetter() string {
+	rand.Seed(time.Now().UnixNano())
+	randomNum := rand.Intn(26) + 65
+	return fmt.Sprintf("%c:\\", rune(randomNum))
 }
 
 func windowsParseSize(size string) uint64 {
@@ -62,9 +81,7 @@ func windowsGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 		s := strings.Split(d["size"], " ")[0]
 		size, _ := strconv.Atoi(s)
 		partitions := orderedmap.New[string, Partition]()
-		partitionIds := make([]string, 0)
 		for _, p := range detail["Volumes"].([]map[string]interface{}) {
-			partitionIds = append(partitionIds, p["ID"].(string))
 			mountPoint := ""
 			if p["MountPoint"] != nil {
 				mountPoint = p["MountPoint"].(string)
@@ -77,11 +94,11 @@ func windowsGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 			})
 		}
 		disks.Set(detail["Disk ID"].(string), Disk{
-			ID:           detail["Disk ID"].(string),
-			Name:         detail["Name"].(string),
-			Size:         uint64(size),
-			Partitions:   *partitions,
-			PartitionIDs: partitionIds,
+			ID:         detail["Disk ID"].(string),
+			Name:       detail["Name"].(string),
+			Type:       detail["Type"].(string),
+			Size:       uint64(size),
+			Partitions: *partitions,
 		})
 	}
 	return disks, nil
@@ -97,6 +114,74 @@ func windowsDiskpartCommand(commands ...string) (string, error) {
 		}
 	}
 	cmd := exec.Command("cmd.exe", "/C", fmt.Sprintf("(%s) | diskpart", c))
+
+	i, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Command execution failed:", err)
+		return "", err
+	}
+	return string(i), nil
+}
+
+func WindowsGetVolumes() *orderedmap.OrderedMap[string, Partition] {
+	volumes := orderedmap.New[string, Partition]()
+	vols := windowsListVolumeGUIDs()
+	for _, i := range vols {
+		if i["FileSystem"] == "" && i["Label"] == "" && i["Size"] == "" {
+			continue
+		}
+		size, _ := strconv.Atoi(i["Capacity"])
+		mountPoint := ""
+		if i["DriveLetter"] != "" {
+			mountPoint = fmt.Sprintf("%s:\\", i["DriveLetter"])
+		}
+		volumes.Set(i["DeviceID"], Partition{
+			ID:         i["DeviceID"],
+			Size:       uint64(size),
+			MountPoint: mountPoint,
+			Name:       i["Label"],
+		})
+	}
+	return volumes
+}
+
+func windowsListVolumeGUIDs() []map[string]string {
+	data, _ := windowsPowershellCommand("GWMI -namespace root\\cimv2 -class win32_volume | FL -property Label,DriveLetter,DeviceID,SystemVolume,Capacity,Freespace,FileSystem")
+	vols := strings.Split(data, "\r\n\r\n")
+	volumes := make([]map[string]string, 0)
+	for _, vol := range vols {
+		vol = strings.TrimSpace(vol)
+		if vol == "" {
+			continue
+		}
+		data := make(map[string]string)
+		for _, l := range strings.Split(vol, "\n") {
+			fsp := make([]string, 0)
+			for _, d := range strings.Split(strings.TrimSpace(l), "") {
+				if strings.TrimSpace(d) != "" {
+					fsp = append(fsp, strings.TrimSpace(d))
+				}
+			}
+			l = strings.Join(fsp, "")
+			if fsp[len(fsp)-1] == ":" {
+				str := strings.Split(l, ":")[0]
+				if str == "DriveLetter" {
+					l = l[:len(l)-1]
+				}
+			}
+			l = strings.TrimSpace(l)
+			sp := strings.Split(l, ":")
+			if len(sp) == 2 {
+				data[strings.TrimSpace(sp[0])] = strings.TrimSpace(sp[1])
+			}
+		}
+		volumes = append(volumes, data)
+	}
+	return volumes
+}
+
+func windowsPowershellCommand(command string) (string, error) {
+	cmd := exec.Command("powershell.exe", "-Command", command)
 
 	i, err := cmd.Output()
 	if err != nil {
@@ -157,7 +242,7 @@ func windowsParseDetailDisk(index string, output string) map[string]interface{} 
 
 func windowsParseListDisk(output string) map[string]map[string]string {
 	diskInfo := make(map[string]map[string]string)
-	diskPattern := regexp.MustCompile(`Disk\s+(\d+)\s+([A-Za-z]+)\s+(\d+\s+[\w]+)\s+(\d+\s+[\w]+)\s+([*])`)
+	diskPattern := regexp.MustCompile(`Disk\s+(\d+)\s+([A-Za-z]+)\s+(\d+\s+[\w]+)\s+(\d+\s+[\w]+)`)
 	lines := strings.Split(output, "\n")
 
 	for _, line := range lines {
@@ -176,6 +261,5 @@ func windowsParseListDisk(output string) map[string]map[string]string {
 			diskInfo[diskNumber] = diskDetails
 		}
 	}
-
 	return diskInfo
 }

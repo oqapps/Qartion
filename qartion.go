@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
+	fyneapp "fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 
 	"fyne.io/fyne/v2/layout"
@@ -15,39 +15,30 @@ import (
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
+var app = fyneapp.New()
+
 var diskIcon widget.Icon
 
 type Disk struct {
-	ID           string
-	Name         string
-	Size         uint64
-	Partitions   orderedmap.OrderedMap[string, Partition]
-	PartitionIDs []string
+	ID         string
+	Name       string
+	Size       uint64
+	Type       string
+	Partitions orderedmap.OrderedMap[string, Partition]
 }
 
 type Partition struct {
-	ID           string
-	Type         string
-	Name         string
-	Size         uint64
-	Device       string
-	Partitions   orderedmap.OrderedMap[string, Partition]
-	PartitionIDs []string
-	MountPoint   string
+	ID         string
+	Type       string
+	Name       string
+	Size       uint64
+	Device     string
+	Partitions orderedmap.OrderedMap[string, Partition]
+	MountPoint string
 }
 type Data struct {
 	Disk      Disk
 	Partition Partition
-}
-
-func loopPartitions(partitions orderedmap.OrderedMap[string, Partition]) {
-	for pair := partitions.Oldest(); pair != nil; pair = pair.Next() {
-		partition := pair.Value
-		Entries[partition.ID] = Data{Partition: partition}
-		for pair := partition.Partitions.Oldest(); pair != nil; pair = pair.Next() {
-			loopPartitions(pair.Value.Partitions)
-		}
-	}
 }
 
 func parseSize(size uint64, giga bool) string {
@@ -70,8 +61,8 @@ func parseSize(size uint64, giga bool) string {
 }
 
 var Disks = orderedmap.New[string, Disk]()
-var Entries = make(map[string]Data)
-var DiskIDs []string
+var Volumes = orderedmap.New[string, Partition]()
+var VolumeType = float64(0)
 
 func LoadData(c *fyne.Container) {
 	button := c.Objects[0]
@@ -80,48 +71,112 @@ func LoadData(c *fyne.Container) {
 	switch runtime.GOOS {
 	case "darwin":
 		{
-			Disks, DiskIDs = DarwinGetPartitions()
+			Disks = DarwinGetPartitions()
 		}
 	case "windows":
 		{
-			Disks, DiskIDs = WindowsGetPartitions()
+			volumeType := FetchSetting("volumeMode")
+			if volumeType != nil {
+				VolumeType = volumeType.(float64)
+			}
+			switch VolumeType {
+			case 1:
+				{
+					Volumes = WindowsGetVolumes()
+				}
+			default:
+				{
+					Disks = WindowsGetPartitions()
+				}
+			}
 		}
 	}
-
-	for pair := Disks.Oldest(); pair != nil; pair = pair.Next() {
-		disk := pair.Value
-		diskName := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", disk.Name))
-		diskSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", parseSize(disk.Size, true)))
-		co := container.NewHBox(&diskIcon, diskName, layout.NewSpacer(), diskSize)
-		diskContainer := container.NewVBox(co)
-		for pair := disk.Partitions.Oldest(); pair != nil; pair = pair.Next() {
-			partition := pair.Value
-			partitionName := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", partition.Name))
-			partitionSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", parseSize(partition.Size, false)))
-			mount := widget.NewButton("Mount", func() {
+	if Disks.Len() > 0 {
+		for pair := Disks.Oldest(); pair != nil; pair = pair.Next() {
+			disk := pair.Value
+			diskName := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", disk.Name))
+			diskSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", parseSize(disk.Size, true)))
+			co := container.NewHBox(&diskIcon, diskName, layout.NewSpacer(), diskSize)
+			diskContainer := container.NewVBox(co)
+			for pair := disk.Partitions.Oldest(); pair != nil; pair = pair.Next() {
+				partition := pair.Value
+				partitionName := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", partition.Name))
+				partitionSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", parseSize(partition.Size, false)))
+				mount := widget.NewButton("Mount", func() {
+					if partition.MountPoint != "" {
+						switch runtime.GOOS {
+						case "darwin":
+							{
+								DarwinOpenFolder(partition.MountPoint)
+							}
+						case "windows":
+							{
+								WindowsOpenFolder(partition.MountPoint)
+							}
+						}
+					} else {
+						switch runtime.GOOS {
+						case "darwin":
+							{
+								success := DarwinMountPartition(partition)
+								if success {
+									LoadData(c)
+								}
+							}
+						case "windows":
+							{
+								if disk.Type == "USB" {
+									button := widget.NewButton("Settings", func() {
+										LaunchSettings(app)
+									})
+									box := container.NewHBox(layout.NewSpacer(), button, layout.NewSpacer())
+									card := widget.NewCard("Unsupported Device", "Linked mode does not support mounting external partitions. Please use Standalone mode.", box)
+									CreatePopup(app, "Unsupported Device", card)
+									return
+								}
+								success := WindowsMountPartition(partition)
+								if success {
+									LoadData(c)
+								}
+							}
+						}
+					}
+				})
 				if partition.MountPoint != "" {
+					mount.Importance = widget.LowImportance
+					mount.SetText(partition.MountPoint)
+				} else {
+					mount.Importance = widget.HighImportance
+				}
+				partitionContainer := container.New(layout.NewHBoxLayout(), partitionName, layout.NewSpacer(), partitionSize, mount)
+				diskContainer.Add(partitionContainer)
+			}
+			card := widget.NewCard("", "", diskContainer)
+			c.Add(card)
+		}
+	} else if Volumes.Len() > 0 {
+		for pair := Volumes.Oldest(); pair != nil; pair = pair.Next() {
+			volume := pair.Value
+			volumeName := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", volume.Name))
+			volumeSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", parseSize(volume.Size, false)))
+
+			mount := widget.NewButton("Mount", func() {
+				if volume.MountPoint != "" {
 					switch runtime.GOOS {
 					case "darwin":
 						{
-							DarwinOpenFolder(partition.MountPoint)
+							DarwinOpenFolder(volume.MountPoint)
 						}
 					case "windows":
 						{
-							WindowsOpenFolder(partition.MountPoint)
+							WindowsOpenFolder(volume.MountPoint)
 						}
 					}
 				} else {
 					switch runtime.GOOS {
-					case "darwin":
-						{
-							success := DarwinMountPartition(partition)
-							if success {
-								LoadData(c)
-							}
-						}
 					case "windows":
 						{
-							success := WindowsMountPartition(partition)
+							success := WindowsMountVolume(volume.ID)
 							if success {
 								LoadData(c)
 							}
@@ -129,25 +184,24 @@ func LoadData(c *fyne.Container) {
 					}
 				}
 			})
-			if partition.MountPoint != "" {
+			if volume.MountPoint != "" {
 				mount.Importance = widget.LowImportance
-				mount.SetText(partition.MountPoint)
+				mount.SetText(volume.MountPoint)
 			} else {
 				mount.Importance = widget.HighImportance
 			}
-			partitionContainer := container.New(layout.NewHBoxLayout(), partitionName, layout.NewSpacer(), partitionSize, mount)
-			diskContainer.Add(partitionContainer)
+			co := container.NewHBox(&diskIcon, volumeName, layout.NewSpacer(), volumeSize, mount)
+			volumeContainer := container.NewVBox(co)
+			card := widget.NewCard("", "", volumeContainer)
+			c.Add(card)
 		}
-		card := widget.NewCard("", "", diskContainer)
-		c.Add(card)
 	}
 }
 
 func main() {
-	a := app.New()
 	_, _ = os.ReadFile("C:\\Users\\Amirb\\Downloads\\transparent-qartion.png")
-	a.SetIcon(fyne.NewStaticResource("logo", Logo))
-	w := a.NewWindow("Qartion")
+	app.SetIcon(fyne.NewStaticResource("logo", Logo))
+	w := app.NewWindow("Qartion")
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		card := widget.NewCard("Unsupported Platform", "Qartion does not support the platform you are using.", widget.NewButton("Exit", func() {
 			w.Close()
@@ -158,9 +212,9 @@ func main() {
 		buttons := container.NewHBox(widget.NewCard("", "", container.New(layout.NewGridLayout(2), widget.NewButton("Refresh", func() {
 			LoadData(c)
 		}), widget.NewButton("Settings", func() {
-			LaunchSettings(a)
+			LaunchSettings(app)
 		}))))
-		i, _ := getDefaultIconTheme()
+		i, _ := getIconTheme()
 
 		var di []byte
 		switch i {

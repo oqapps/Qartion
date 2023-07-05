@@ -33,7 +33,6 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 			// disk
 			id := uuid.NewString()
 			partitions := orderedmap.New[string, Partition]()
-			partitionIDs := make([]string, 0)
 			pars := data.Values[3].([]interface{})
 			for _, p := range pars {
 				par := p.(plist.OrderedDict)
@@ -53,7 +52,6 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 							Size:       par.Values[3].(uint64),
 							MountPoint: mountPoint,
 						})
-						partitionIDs = append(partitionIDs, par.Values[2].(string))
 					}
 				case 7:
 					{
@@ -64,17 +62,15 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 							Size:       par.Values[4].(uint64),
 							MountPoint: par.Values[3].(string),
 						})
-						partitionIDs = append(partitionIDs, par.Values[2].(string))
 					}
 				}
 			}
 			info, _ := GetInfo(data.Values[1].(string))
 			disks.Set(info["MediaName"].(string), Disk{
-				ID:           id,
-				Name:         info["MediaName"].(string),
-				Size:         data.Values[4].(uint64),
-				Partitions:   *partitions,
-				PartitionIDs: partitionIDs,
+				ID:         id,
+				Name:       info["MediaName"].(string),
+				Size:       data.Values[4].(uint64),
+				Partitions: *partitions,
 			})
 		} else if len(data.Keys) == 7 {
 			// container
@@ -95,7 +91,6 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 									Size:       par.Values[5].(uint64),
 									MountPoint: par.Values[3].(string),
 								})
-								disk.PartitionIDs = append(disk.PartitionIDs, par.Values[2].(string))
 							}
 						}
 					case 9:
@@ -107,7 +102,6 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 								Size:       par.Values[6].(uint64),
 								MountPoint: par.Values[3].(string),
 							})
-							disk.PartitionIDs = append(disk.PartitionIDs, par.Values[2].(string))
 						}
 					}
 				}
@@ -136,20 +130,13 @@ func GetInfo(name string) (map[string]interface{}, error) {
 	return d, nil
 }
 
-func DarwinGetPartitions() (Disks *orderedmap.OrderedMap[string, Disk], DiskIDs []string) {
+func DarwinGetPartitions() *orderedmap.OrderedMap[string, Disk] {
 	disks, err := darwinGetDiskPartitions()
 	if err != nil {
 		fmt.Println("Error:", err)
-		return
+		return nil
 	}
-	Disks = disks
-
-	for pair := disks.Oldest(); pair != nil; pair = pair.Next() {
-		DiskIDs = append(DiskIDs, pair.Value.ID)
-		Entries[pair.Value.ID] = Data{Disk: pair.Value}
-		loopPartitions(pair.Value.Partitions)
-	}
-	return
+	return disks
 }
 
 func DarwinOpenFolder(path string) {
@@ -167,6 +154,6 @@ func DarwinMountPartition(partition Partition) bool {
 	if e != nil {
 		return false
 	}
-	exec.Command("open", info["MountPoint"].(string)).Run()
-	return true
+	e = exec.Command("open", info["MountPoint"].(string)).Run()
+	return e == nil
 }
