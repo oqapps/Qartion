@@ -41,12 +41,7 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 				case 6:
 					{
 						if par.Values[0] == "Microsoft Basic Data" {
-							id := par.Values[3].(string)
-							mountPoint := ""
-							if filepath.IsAbs(id) {
-								mountPoint = id
-								id = par.Values[5].(string)
-							}
+							id := par.Values[2].(string)
 							namesp := strings.Split(par.Values[3].(string), "/")
 							name := namesp[len(namesp)-1]
 							partitions.Set(id, Partition{
@@ -54,7 +49,7 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 								Device:     par.Values[1].(string),
 								ID:         id,
 								Size:       par.Values[4].(uint64),
-								MountPoint: mountPoint,
+								MountPoint: par.Values[3].(string),
 							})
 						} else {
 							id := par.Values[2].(string)

@@ -42,6 +42,10 @@ type Data struct {
 }
 
 func parseSize(size uint64) string {
+	terabyte := size / 1e+12
+	if terabyte > 0 {
+		return fmt.Sprintf("%dTB", terabyte)
+	}
 	gigabyte := size / 1e+9
 	if gigabyte > 0 {
 		return fmt.Sprintf("%dGB", gigabyte)
