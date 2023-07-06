@@ -70,7 +70,7 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 				ID:         id,
 				Name:       info["MediaName"].(string),
 				Size:       data.Values[4].(uint64),
-				Partitions: *partitions,
+				Partitions: partitions,
 			})
 		} else if len(data.Keys) == 7 {
 			// container
