@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"path/filepath"
 
@@ -39,19 +40,32 @@ func darwinGetDiskPartitions() (*orderedmap.OrderedMap[string, Disk], error) {
 				switch len(par.Keys) {
 				case 6:
 					{
-						id := par.Values[2].(string)
-						mountPoint := ""
-						if filepath.IsAbs(id) {
-							mountPoint = id
-							id = par.Values[5].(string)
+						if par.Values[0] == "Microsoft Basic Data" {
+							id := par.Values[2].(string)
+							namesp := strings.Split(par.Values[3].(string), "/")
+							name := namesp[len(namesp)-1]
+							partitions.Set(id, Partition{
+								Name:       name,
+								Device:     par.Values[1].(string),
+								ID:         id,
+								Size:       par.Values[4].(uint64),
+								MountPoint: par.Values[3].(string),
+							})
+						} else {
+							id := par.Values[2].(string)
+							mountPoint := ""
+							if filepath.IsAbs(id) {
+								mountPoint = id
+								id = par.Values[5].(string)
+							}
+							partitions.Set(id, Partition{
+								Name:       par.Values[4].(string),
+								Device:     par.Values[1].(string),
+								ID:         id,
+								Size:       par.Values[3].(uint64),
+								MountPoint: mountPoint,
+							})
 						}
-						partitions.Set(id, Partition{
-							Name:       par.Values[4].(string),
-							Device:     par.Values[1].(string),
-							ID:         id,
-							Size:       par.Values[3].(uint64),
-							MountPoint: mountPoint,
-						})
 					}
 				case 7:
 					{
