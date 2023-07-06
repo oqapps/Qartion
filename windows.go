@@ -47,16 +47,15 @@ func windowsCommand(command string) (string, error) {
 	return string(output), err
 }
 
-func windowsParseListDisk(output string) map[string]map[string]interface{} {
+func windowsParseListDisk(output string) *orderedmap.OrderedMap[string, Disk] {
 	ls := strings.Split(output, "\n")
-	disks := make(map[string]map[string]interface{}, 0)
+	disks := orderedmap.New[string, Disk]()
 	for i, l := range ls {
 		if i == 0 {
 			continue
 		}
 		vals := strings.Split(l, "  ")
 		values := make([]string, 0)
-		disk := make(map[string]interface{})
 		if len(vals) < 3 {
 			continue
 		}
@@ -65,11 +64,14 @@ func windowsParseListDisk(output string) map[string]map[string]interface{} {
 				values = append(values, strings.TrimSpace(r))
 			}
 		}
-		disk["Index"] = values[0]
-		disk["Model"] = values[1]
-		disk["Size"] = values[2]
-		disk["Volumes"] = orderedmap.New[string, Partition]()
-		disks[strings.TrimSpace(values[0])] = disk
+		size, _ := strconv.Atoi(values[2])
+		id := strings.TrimSpace(values[0])
+		disks.Set(id, Disk{
+			Name:       values[1],
+			ID:         id,
+			Partitions: orderedmap.New[string, Partition](),
+			Size:       uint64(size),
+		})
 	}
 	return disks
 }
@@ -97,39 +99,41 @@ func windowsGetDiskNumbers() map[string]string {
 }
 
 func WindowsGetDisks() (*orderedmap.OrderedMap[string, Disk], error) {
-	pdata, _ := windowsPowershellCommand("Get-CimInstance -Class Win32_Volume | Select-Object DriveLetter, DeviceID, Label, FileSystem, Capacity, FreeSpace")
+	pdata, _ := windowsCommand("wmic volume get DeviceID, Capacity, Label, DriveLetter")
 	ddata, _ := windowsCommand("wmic diskdrive get Model, Size, Index")
-	ddisks := windowsParseListDisk(ddata)
-	disks := orderedmap.New[string, Disk]()
-	volus := strings.Split(strings.TrimSpace(pdata), "\r\n\r\n")
+	disks := windowsParseListDisk(ddata)
+	volus := strings.Split(strings.TrimSpace(pdata), "\n")
 	dnums := windowsGetDiskNumbers()
-	for _, vol := range volus {
+	for i, vol := range volus {
+		if i == 0 {
+			continue
+		}
 		data := make(map[string]string)
-		for _, l := range strings.Split(vol, "\n") {
-			fsp := make([]string, 0)
-			for _, d := range strings.Split(strings.TrimSpace(l), "") {
-				if strings.TrimSpace(d) != "" {
-					fsp = append(fsp, strings.TrimSpace(d))
-				}
-			}
-			l = strings.Join(fsp, "")
-			if fsp[len(fsp)-1] == ":" {
-				str := strings.Split(l, ":")[0]
-				if str == "DriveLetter" {
-					l = l[:len(l)-1]
-				}
-			}
-			l = strings.TrimSpace(l)
-			sp := strings.Split(l, ":")
-			if len(sp) == 2 {
-				data[strings.TrimSpace(sp[0])] = strings.TrimSpace(sp[1])
+		vals := make([]string, 0)
+		for _, e := range strings.Split(vol, "  ") {
+			tr := strings.TrimSpace(e)
+			if tr != "" {
+				vals = append(vals, tr)
 			}
 		}
-		disk := ddisks[dnums[data["DeviceID"]]]
+		data["Capacity"] = vals[0]
+		data["DeviceID"] = vals[1]
+		switch len(vals) {
+		case 3:
+			{
+				data["Label"] = vals[2]
+			}
+		case 4:
+			{
+				data["DriveLetter"] = vals[2]
+				data["Label"] = vals[3]
+			}
+		}
+		disk, _ := disks.Get(dnums[data["DeviceID"]])
 		size, _ := strconv.Atoi(data["Capacity"])
 		mountPoint := ""
 		if data["DriveLetter"] != "" {
-			mountPoint = fmt.Sprintf("%s:\\", data["DriveLetter"])
+			mountPoint = fmt.Sprintf("%s\\", data["DriveLetter"])
 		}
 		partition := Partition{
 			ID:         data["DeviceID"],
@@ -137,26 +141,13 @@ func WindowsGetDisks() (*orderedmap.OrderedMap[string, Disk], error) {
 			Size:       uint64(size),
 			MountPoint: mountPoint,
 		}
-		vols := disk["Volumes"].(*orderedmap.OrderedMap[string, Partition])
-		vols.Set(data["DeviceID"], partition)
-	}
-	for _, disk := range ddisks {
-		size, _ := strconv.Atoi(disk["Size"].(string))
-		d := Disk{
-			ID:   disk["Index"].(string),
-			Name: disk["Model"].(string),
-			Size: uint64(size),
-		}
-		if disk["Volumes"] != nil {
-			d.Partitions = disk["Volumes"].(*orderedmap.OrderedMap[string, Partition])
-		}
-		disks.Set(disk["Index"].(string), d)
+		disk.Partitions.Set(data["DeviceID"], partition)
 	}
 	return disks, nil
 }
 
 func windowsPowershellCommand(command string) (string, error) {
-	cmd := exec.Command("powershell.exe", "-Command", command)
+	cmd := exec.Command("powershell.exe", "/C", command)
 
 	i, err := cmd.Output()
 	if err != nil {
