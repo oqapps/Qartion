@@ -5,7 +5,7 @@ Qartion is a free partition mounter for Windows and macOS
 ### macOS
 ![macOS Screenshot](https://i.imgur.com/6LNmHeQ.png)
 ### Windows
-![Windows Screenshot (Linked Mode)](https://i.imgur.com/5ZcS4yz.png)
+![Windows Screenshot](https://i.imgur.com/5ZcS4yz.png)
 
 ## Tested On
 Windows 10
@@ -15,6 +15,7 @@ Windows 11
 macOS Ventura
 
 macOS Sonoma
+
 
 ## Disclaimer
 THIS SOFTWARE IS PROVIDED 'AS IS' AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
