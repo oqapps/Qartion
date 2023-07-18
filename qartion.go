@@ -15,6 +15,7 @@ import (
 var Disks = orderedmap.New[string, Disk]()
 var Volumes = orderedmap.New[string, Partition]()
 var VolumeType = float64(0)
+var window *widgets.QMainWindow
 
 type Disk struct {
 	ID         string
@@ -95,7 +96,7 @@ func LoadData(l *widgets.QGridLayout) {
 
 		var layout = widgets.NewQGridLayout2()
 		layout.AddWidget2(diskName, 0, 0, 0)
-		layout.AddWidget2(diskSize, 0, 4, 0)
+		layout.AddWidget2(diskSize, 0, 100, 0)
 
 		var pindex = 1
 		for pair := disk.Partitions.Oldest(); pair != nil; pair = pair.Next() {
@@ -109,8 +110,8 @@ func LoadData(l *widgets.QGridLayout) {
 			partitionSize.SetFont(partitionFont)
 
 			layout.AddWidget2(partitionName, pindex, 0, 0)
-			layout.AddWidget2(partitionSize, pindex, 1, 0)
-			layout.AddWidget3(mountButton, pindex, 2, 1, 3, 0)
+			layout.AddWidget2(partitionSize, pindex, 1, core.Qt__AlignRight)
+			layout.AddWidget2(mountButton, pindex, 2, core.Qt__AlignRight)
 
 			mountButton.ConnectClicked(func(bool) {
 				if partition.MountPoint != "" {
@@ -160,9 +161,7 @@ func main() {
 	core.QCoreApplication_SetOrganizationName("oqDev")
 	core.QCoreApplication_SetApplicationName("Qartion")
 	core.QCoreApplication_SetApplicationVersion("1.3.0")
-	window := widgets.NewQMainWindow(nil, 0)
-	wsize := window.Size()
-	window.SetFixedSize2(wsize.Width(), wsize.Height())
+	window = widgets.NewQMainWindow(nil, 0)
 
 	menuBar := window.MenuBar()
 	menu := menuBar.AddMenu2("App")
