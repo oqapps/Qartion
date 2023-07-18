@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -135,7 +134,6 @@ func LoadData(c *fyne.Container) {
 }
 
 func main() {
-	_, _ = os.ReadFile("C:\\Users\\Amirb\\Downloads\\transparent-qartion.png")
 	app.SetIcon(fyne.NewStaticResource("logo", Logo))
 	w := app.NewWindow("Qartion")
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
