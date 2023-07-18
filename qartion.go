@@ -101,6 +101,9 @@ func LoadData(l *widgets.QGridLayout) {
 		var pindex = 1
 		for pair := disk.Partitions.Oldest(); pair != nil; pair = pair.Next() {
 			partition := pair.Value
+			if partition.Name == "" {
+				partition.Name = "(No Name)"
+			}
 			var (
 				partitionName = widgets.NewQLabel2(partition.Name, nil, 0)
 				partitionSize = widgets.NewQLabel2(parseSize(partition.Size), nil, 0)
