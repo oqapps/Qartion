@@ -1,22 +1,20 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
+	"os"
 	"runtime"
 
-	"fyne.io/fyne/v2"
-	fyneapp "fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-
-	"fyne.io/fyne/v2/layout"
-
-	"fyne.io/fyne/v2/widget"
+	"github.com/therecipe/qt/core"
+	"github.com/therecipe/qt/gui"
+	"github.com/therecipe/qt/widgets"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
-var app = fyneapp.New()
-
-var diskIcon widget.Icon
+var Disks = orderedmap.New[string, Disk]()
+var Volumes = orderedmap.New[string, Partition]()
+var VolumeType = float64(0)
 
 type Disk struct {
 	ID         string
@@ -60,14 +58,14 @@ func parseSize(size uint64) string {
 	return fmt.Sprintf("%dB", size)
 }
 
-var Disks = orderedmap.New[string, Disk]()
-var Volumes = orderedmap.New[string, Partition]()
-var VolumeType = float64(0)
-
-func LoadData(c *fyne.Container) {
-	button := c.Objects[0]
-	c.RemoveAll()
-	c.Add(button)
+func LoadData(l *widgets.QGridLayout) {
+	for l.Count() > 0 {
+		layoutItem := l.TakeAt(0)
+		if layoutItem != nil {
+			layoutItem.Widget().SetParent(nil)
+			layoutItem.Widget().DestroyQWidget()
+		}
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		{
@@ -78,17 +76,43 @@ func LoadData(c *fyne.Container) {
 			Disks, _ = WindowsGetDisks()
 		}
 	}
+	var index = 0
 	for pair := Disks.Oldest(); pair != nil; pair = pair.Next() {
 		disk := pair.Value
-		diskName := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", disk.Name))
-		diskSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("# %s", parseSize(disk.Size)))
-		co := container.NewHBox(&diskIcon, diskName, layout.NewSpacer(), diskSize)
-		diskContainer := container.NewVBox(co)
+
+		var (
+			card          = widgets.NewQGroupBox2("", nil)
+			diskFont      = gui.NewQFont()
+			partitionFont = gui.NewQFont()
+			diskName      = widgets.NewQLabel2(disk.Name, nil, 0)
+			diskSize      = widgets.NewQLabel2(parseSize(disk.Size), nil, 0)
+		)
+		diskFont.SetPointSize(25)
+		diskName.SetFont(diskFont)
+		diskSize.SetFont(diskFont)
+
+		partitionFont.SetPointSize(15)
+
+		var layout = widgets.NewQGridLayout2()
+		layout.AddWidget2(diskName, 0, 0, 0)
+		layout.AddWidget2(diskSize, 0, 2, 0)
+
+		var pindex = 1
 		for pair := disk.Partitions.Oldest(); pair != nil; pair = pair.Next() {
 			partition := pair.Value
-			partitionName := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", partition.Name))
-			partitionSize := widget.NewRichTextFromMarkdown(fmt.Sprintf("## %s", parseSize(partition.Size)))
-			mount := widget.NewButton("Mount", func() {
+			var (
+				partitionName = widgets.NewQLabel2(partition.Name, nil, 0)
+				partitionSize = widgets.NewQLabel2(parseSize(partition.Size), nil, 0)
+				mountButton   = widgets.NewQPushButton2("Mount", nil)
+			)
+			partitionName.SetFont(partitionFont)
+			partitionSize.SetFont(partitionFont)
+
+			layout.AddWidget2(partitionName, pindex, 0, 0)
+			layout.AddWidget2(partitionSize, pindex, 1, 0)
+			layout.AddWidget3(mountButton, pindex, 2, 1, 2, 0)
+
+			mountButton.ConnectClicked(func(bool) {
 				if partition.MountPoint != "" {
 					switch runtime.GOOS {
 					case "darwin":
@@ -104,64 +128,60 @@ func LoadData(c *fyne.Container) {
 					switch runtime.GOOS {
 					case "darwin":
 						{
-							success := DarwinMountPartition(partition)
+							success, partition := DarwinMountPartition(partition)
 							if success {
-								LoadData(c)
+								mountButton.SetText(partition.MountPoint)
 							}
 						}
 					case "windows":
 						{
-							success := WindowsMountVolume(partition.ID)
+							success, mountpoint := WindowsMountVolume(partition.ID)
 							if success {
-								LoadData(c)
+								mountButton.SetText(mountpoint)
 							}
 						}
 					}
 				}
 			})
+
 			if partition.MountPoint != "" {
-				mount.Importance = widget.LowImportance
-				mount.SetText(partition.MountPoint)
-			} else {
-				mount.Importance = widget.HighImportance
+				mountButton.SetText(partition.MountPoint)
 			}
-			partitionContainer := container.New(layout.NewHBoxLayout(), partitionName, layout.NewSpacer(), partitionSize, mount)
-			diskContainer.Add(partitionContainer)
+			pindex += 1
 		}
-		card := widget.NewCard("", "", diskContainer)
-		c.Add(card)
+		card.SetLayout(layout)
+		l.AddWidget2(card, index, 0, 0)
+		index += 1
 	}
 }
 
 func main() {
-	app.SetIcon(fyne.NewStaticResource("logo", Logo))
-	w := app.NewWindow("Qartion")
-	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
-		card := widget.NewCard("Unsupported Platform", "Qartion does not support the platform you are using.", widget.NewButton("Exit", func() {
-			w.Close()
-		}))
-		w.SetContent(card)
-	} else {
-		c := container.NewVBox()
-		buttons := container.NewHBox(widget.NewCard("", "", container.New(layout.NewGridLayout(2), widget.NewButton("Refresh", func() {
-			LoadData(c)
-		}), widget.NewButton("Settings", func() {
-			LaunchSettings(app)
-		}))))
-		i, _ := getIconTheme()
+	app := widgets.NewQApplication(len(os.Args), os.Args)
+	core.QCoreApplication_SetOrganizationName("oqDev")
+	core.QCoreApplication_SetApplicationName("Qartion")
+	core.QCoreApplication_SetApplicationVersion("1.3.0")
+	window := widgets.NewQMainWindow(nil, 0)
+	wsize := window.Size()
+	window.SetFixedSize2(wsize.Width(), wsize.Height())
 
-		var di []byte
-		switch i {
-		case "windows":
-			di = WindowsDiskIcon
-		case "darwin":
-			di = DarwinDiskIcon
-		}
-		diskIcon = *widget.NewIcon(fyne.NewStaticResource("disk-icon", di))
-		c.Add(buttons)
-		LoadData(c)
-		w.SetContent(c)
-	}
+	menuBar := window.MenuBar()
+	menu := menuBar.AddMenu2("App")
+	reloadButton := menu.AddAction("Reload")
+	reloadShortcut := gui.NewQKeySequence2("Ctrl+R", gui.QKeySequence__NativeText)
+	reloadButton.SetShortcut(reloadShortcut)
 
-	w.ShowAndRun()
+	var layout = widgets.NewQGridLayout2()
+	var centralWidget = widgets.NewQWidget(window, 0)
+	centralWidget.SetLayout(layout)
+	window.SetCentralWidget(centralWidget)
+
+	reloadButton.ConnectTriggered(func(checked bool) {
+		LoadData(layout)
+	})
+
+	LoadData(layout)
+
+	window.SetWindowTitle("Qartion")
+	window.Show()
+	app.Exec()
 }

@@ -18,11 +18,13 @@ func WindowsOpenFolder(path string) {
 	cmd.Run()
 }
 
-func WindowsMountVolume(volumeId string) bool {
+func WindowsMountVolume(volumeId string) (bool, string) {
 	letter := windowsGenerateLetter()
 	cmd := elevate.Command("mountvol", letter, volumeId)
 	err := cmd.Run()
-	return err == nil
+	mountpoint := fmt.Sprintf("%s:\\", letter)
+	WindowsOpenFolder(mountpoint)
+	return err == nil, mountpoint
 }
 
 func windowsGenerateLetter() string {

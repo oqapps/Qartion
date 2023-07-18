@@ -158,16 +158,17 @@ func DarwinOpenFolder(path string) {
 	cmd.Run()
 }
 
-func DarwinMountPartition(partition Partition) bool {
+func DarwinMountPartition(partition Partition) (bool, Partition) {
 	cmd := elevate.Command("diskutil", "mount", partition.Device)
 	_, e := cmd.Output()
 	if e != nil {
-		return false
+		return false, partition
 	}
 	info, e := GetInfo(partition.ID)
 	if e != nil {
-		return false
+		return false, partition
 	}
 	e = exec.Command("open", info["MountPoint"].(string)).Run()
-	return e == nil
+	partition.MountPoint = info["MountPoint"].(string)
+	return e == nil, partition
 }
